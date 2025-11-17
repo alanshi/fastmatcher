@@ -1,4 +1,4 @@
-# fasfastmatcher
+# fastmatcher
 
 ## Cross Compiling from macOS to Windows
 
