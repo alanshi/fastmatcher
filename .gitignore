@@ -1,0 +1,7 @@
+target/
+test_data/
+.venv/
+venv/
+*.csv
+tests
+.DS_Store
