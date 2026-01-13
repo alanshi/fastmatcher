@@ -1,5 +1,16 @@
 from pathlib import Path
+from itertools import islice
+
 from fastmatcher import ACMatcher
+
+
+def batched(iterable, size=1000):
+    it = iter(iterable)
+    while True:
+        batch = list(islice(it, size))
+        if not batch:
+            break
+        yield batch
 
 
 def iter_files(root: str):
