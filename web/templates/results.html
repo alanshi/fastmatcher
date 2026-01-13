@@ -33,6 +33,10 @@
         .result-row:hover {
             @apply bg-gray-50;
         }
+        /* 关键词列样式：每行一个关键词 */
+        .keyword-item {
+            @apply block text-red-600 text-sm mb-1 last:mb-0;
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -69,7 +73,11 @@
                 </div>
                 <div class="bg-gray-50 p-3 rounded-lg">
                     <div class="text-sm text-gray-500">关键词</div>
-                    <div class="font-medium text-red-600">{{ result_data.search_params.keywords | join(', ') }}</div>
+                    <div class="font-medium text-red-600">
+                        {% for kw in result_data.search_params.keywords %}
+                            {{ kw }},
+                        {% endfor %}
+                    </div>
                 </div>
                 <div class="bg-gray-50 p-3 rounded-lg">
                     <div class="text-sm text-gray-500">匹配结果数</div>
@@ -121,7 +129,7 @@
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-12">序号</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">文件路径</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-20">行号</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">匹配关键词</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-32">匹配关键词</th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider flex-1">匹配内容</th>
                         </tr>
                     </thead>
@@ -310,7 +318,7 @@
         }
 
         /**
-         * 渲染当前页数据
+         * 渲染当前页数据 - 核心修复：确保关键词数组正确解析
          */
         function renderCurrentPage() {
             const tableBody = document.getElementById('resultsTableBody');
@@ -325,10 +333,17 @@
             currentResults.forEach((item, index) => {
                 // 合并所有行内容，处理换行符问题
                 const contentLines = item.lines || [];
-                // 合并多行内容，用换行分隔（避免内容过于冗长）
                 const fullContent = contentLines.join('\n');
-                // 处理内容（清理换行+高亮）
                 const processedContent = processContent(fullContent);
+
+                // ========== 核心修复：强制确保keywords是数组 ==========
+                let itemKeywords = item.keywords || [];
+                // 如果是字符串，按逗号分割（兼容后端可能的错误返回）
+                if (typeof itemKeywords === 'string') {
+                    itemKeywords = itemKeywords.split(',').map(kw => kw.trim()).filter(kw => kw);
+                }
+                // 确保最终是数组
+                itemKeywords = Array.isArray(itemKeywords) ? itemKeywords : [];
 
                 // 创建表格行
                 const tr = document.createElement('tr');
@@ -352,10 +367,15 @@
                 lineTd.textContent = item.line_no || '';
                 tr.appendChild(lineTd);
 
-                // 关键词列
+                // 匹配关键词列 - 确保所有关键词都显示
                 const kwTd = document.createElement('td');
-                kwTd.className = 'px-4 py-3 text-sm text-red-600';
-                kwTd.textContent = (item.keywords || []).join(', ') || '';
+                kwTd.className = 'px-4 py-3 text-sm';
+                if (itemKeywords.length > 0) {
+                    // 遍历所有关键词，每行一个
+                    kwTd.innerHTML = itemKeywords.map(kw => `<span class="keyword-item">${kw}</span>, `).join('');
+                } else {
+                    kwTd.textContent = '无';
+                }
                 tr.appendChild(kwTd);
 
                 // 匹配内容列

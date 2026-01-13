@@ -123,11 +123,18 @@ async def search_files_batch(matcher: ACMatcher, files: List[str]) -> List[dict]
     def search_sync():
         results = []
         for match in matcher.search_files_iter(files):
+            # 确保 keywords 是数组
+            match_keywords = match.keywords
+            if isinstance(match_keywords, str):
+                match_keywords = [match_keywords]
+            elif not isinstance(match_keywords, list):
+                match_keywords = []
+
             results.append({
                 "file": getattr(match, 'file', ''),
                 "line_no": match.line_no,
-                "keywords": match.keywords,
-                "lines": match.lines  # 确保匹配行内容被正确存储
+                "keywords": match_keywords,  # 确保是数组
+                "lines": match.lines
             })
         return results
 

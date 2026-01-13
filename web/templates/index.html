@@ -57,17 +57,21 @@
                     <p id="dir-error" class="text-red-500 text-xs mt-1 hidden">请输入有效的目录路径</p>
                 </div>
 
-                <!-- 关键词输入 -->
+                <!-- 关键词输入：改为多行文本域 -->
                 <div class="space-y-2">
                     <label class="block text-sm font-medium text-gray-700">
-                        <i class="fa fa-key mr-1"></i> 关键词（逗号分隔） <span class="text-red-500">*</span>
+                        <i class="fa fa-key mr-1"></i> 关键词（每行一个） <span class="text-red-500">*</span>
                     </label>
-                    <input
+                    <textarea
                         id="keywords"
-                        type="text"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                        placeholder="例如: ERROR,FATAL,panic,Exception"
-                    >
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition resize-none"
+                        placeholder="例如:
+ERROR
+FATAL
+panic
+Exception"
+                        rows="4"
+                    ></textarea>
                     <p id="kw-error" class="text-red-500 text-xs mt-1 hidden">请输入至少一个关键词</p>
                 </div>
 
@@ -143,7 +147,7 @@
         // DOM 元素
         const elements = {
             directory: document.getElementById('directory'),
-            keywords: document.getElementById('keywords'),
+            keywords: document.getElementById('keywords'), // 现在是textarea
             context: document.getElementById('context'),
             searchBtn: document.getElementById('searchBtn'),
             cancelBtn: document.getElementById('cancelBtn'),
@@ -176,18 +180,21 @@
             {% endif %}
         });
 
-        // 验证输入
+        // 验证输入（适配多行关键词）
         function validateInput() {
             let isValid = true;
             const directory = elements.directory.value.trim();
-            const keywords = elements.keywords.value.trim();
+            // 处理多行关键词：按换行分割，清理空行和空格
+            const keywords = elements.keywords.value.split('\n')
+                .map(kw => kw.trim())
+                .filter(kw => kw.length > 0);
 
             if (!directory) {
                 elements.dirError.classList.remove('hidden');
                 isValid = false;
             }
 
-            if (!keywords) {
+            if (keywords.length === 0) {
                 elements.kwError.classList.remove('hidden');
                 isValid = false;
             }
@@ -195,14 +202,17 @@
             return isValid;
         }
 
-        // 处理搜索
+        // 处理搜索（适配多行关键词）
         async function handleSearch() {
             // 输入验证
             if (!validateInput()) return;
 
             // 获取参数
             const directory = elements.directory.value.trim();
-            const keywords = elements.keywords.value.trim().split(',').map(k => k.trim()).filter(k => k);
+            // 解析多行关键词：按换行分割，去除空行和首尾空格
+            const keywords = elements.keywords.value.split('\n')
+                .map(kw => kw.trim())
+                .filter(kw => kw.length > 0);
             const context = Math.max(0, Math.min(10, parseInt(elements.context.value || "1")));
 
             // 禁用按钮
@@ -218,7 +228,7 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         directory: directory,
-                        keywords: keywords,
+                        keywords: keywords, // 仍传递数组，后端无需修改
                         context: context
                     })
                 });
