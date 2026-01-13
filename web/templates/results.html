@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>搜索结果 - FastMatcher</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <style>
+        /* 高亮样式 */
+        .highlight {
+            background-color: #fef3c7;
+            color: #92400e;
+            font-weight: 600;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+        /* 表格内容样式 */
+        .code-content {
+            font-family: 'Consolas', 'Monaco', monospace;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        /* 分页样式 */
+        .pagination-btn {
+            @apply px-3 py-1 rounded border border-gray-300 hover:bg-gray-100 transition;
+        }
+        .pagination-btn.active {
+            @apply bg-blue-600 text-white border-blue-600;
+        }
+        /* 表格行 hover 效果 */
+        .result-row:hover {
+            @apply bg-gray-50;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- 顶部导航 -->
+    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white py-4 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center">
+            <h1 class="text-2xl font-bold flex items-center mb-4 md:mb-0">
+                <i class="fa fa-search mr-2"></i> FastMatcher
+                <span class="text-sm font-normal ml-2 text-blue-200">搜索结果</span>
+            </h1>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <a href="/" class="text-white hover:text-blue-200">
+                    <i class="fa fa-home mr-1"></i> 返回搜索
+                </a>
+                <a href="/api/download-json/{{ search_id }}" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center justify-center">
+                    <i class="fa fa-download mr-2"></i> 下载JSON结果
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <!-- 搜索信息摘要 -->
+        <section class="bg-white rounded-xl shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">
+                <i class="fa fa-info-circle mr-2"></i> 搜索信息
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <div class="text-sm text-gray-500">扫描目录</div>
+                    <div class="font-medium break-all">{{ result_data.search_params.directory }}</div>
+                </div>
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <div class="text-sm text-gray-500">关键词</div>
+                    <div class="font-medium text-red-600">{{ result_data.search_params.keywords | join(', ') }}</div>
+                </div>
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <div class="text-sm text-gray-500">匹配结果数</div>
+                    <div class="font-medium text-green-600 text-xl">{{ result_data.count }}</div>
+                </div>
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <div class="text-sm text-gray-500">处理文件数</div>
+                    <div class="font-medium">{{ result_data.processed }} / {{ result_data.total }}</div>
+                </div>
+            </div>
+
+            {% if result_data.error %}
+            <div class="mt-4 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+                <strong class="font-bold">搜索出错:</strong> {{ result_data.error }}
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- 搜索结果表格区域 -->
+        <section class="bg-white rounded-xl shadow-md p-6">
+            <div class="flex justify-between items-center mb-6 border-b pb-3 border-gray-200">
+                <h2 class="text-xl font-semibold text-gray-800">
+                    <i class="fa fa-table mr-2"></i> 匹配结果 ({{ result_data.count }})
+                </h2>
+                <!-- 分页设置 -->
+                <div class="flex items-center gap-3">
+                    <label class="text-sm text-gray-600">每页显示:</label>
+                    <select id="pageSizeSelect" class="border border-gray-300 rounded px-2 py-1 text-sm">
+                        <option value="10">10条</option>
+                        <option value="20" selected>20条</option>
+                        <option value="50">50条</option>
+                        <option value="100">100条</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 结果为空提示 -->
+            {% if result_data.count == 0 %}
+            <div class="py-12 text-center text-gray-500">
+                <i class="fa fa-search fa-3x mb-3 text-gray-300"></i>
+                <p>未找到匹配的结果</p>
+            </div>
+            {% else %}
+            <!-- 结果表格 -->
+            <div class="overflow-x-auto mb-6">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-12">序号</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">文件路径</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider w-20">行号</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">匹配关键词</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider flex-1">匹配内容</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsTableBody" class="bg-white divide-y divide-gray-200">
+                        <!-- 表格内容由JS动态渲染 -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 分页控件 -->
+            <div id="pagination" class="flex justify-center items-center gap-2">
+                <!-- 分页按钮由JS动态渲染 -->
+            </div>
+            {% endif %}
+        </section>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="mt-12 bg-gray-800 text-gray-300 py-4">
+        <div class="max-w-7xl mx-auto px-4 text-center text-sm">
+            FastMatcher © 2026 - 高效文件关键词搜索工具
+        </div>
+    </footer>
+
+    <script>
+        // 全局变量
+        const allResults = {{ result_data.results | tojson | safe }}; // 所有结果
+        const keywords = {{ result_data.search_params.keywords | tojson | safe }}; // 关键词列表
+        let currentPage = 1; // 当前页码
+        let pageSize = 20; // 每页条数
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            // 初始化分页
+            initPagination();
+
+            // 渲染当前页数据
+            renderCurrentPage();
+
+            // 监听每页条数变化
+            document.getElementById('pageSizeSelect').addEventListener('change', (e) => {
+                pageSize = parseInt(e.target.value);
+                currentPage = 1; // 重置到第一页
+                initPagination();
+                renderCurrentPage();
+            });
+        });
+
+        /**
+         * 处理文本内容：清理多余换行符，保留必要的换行，高亮关键词
+         * @param {string} text - 原始文本
+         * @returns {string} 处理后的HTML文本
+         */
+        function processContent(text) {
+            if (!text) return '';
+
+            // 1. 清理多余的换行符和空格
+            let processed = text
+                .replace(/\n+/g, '\n') // 多个换行符替换为单个
+                .replace(/^\n+|\n+$/g, '') // 移除首尾换行
+                .replace(/\t/g, '    ') // 制表符替换为4个空格
+                .trim();
+
+            // 2. 高亮关键词（不区分大小写）
+            keywords.forEach(kw => {
+                if (!kw) return;
+                // 创建不区分大小写的正则表达式
+                const regex = new RegExp(escapeRegExp(kw), 'gi');
+                // 替换为高亮标签
+                processed = processed.replace(regex, (match) => {
+                    return `<span class="highlight">${match}</span>`;
+                });
+            });
+
+            // 3. 将换行符转换为<br>，确保在表格中正常显示
+            processed = processed.replace(/\n/g, '<br>');
+
+            return processed;
+        }
+
+        /**
+         * 转义正则表达式特殊字符
+         * @param {string} str - 原始字符串
+         * @returns {string} 转义后的字符串
+         */
+        function escapeRegExp(str) {
+            return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        /**
+         * 初始化分页控件
+         */
+        function initPagination() {
+            const totalPages = Math.ceil(allResults.length / pageSize);
+            const paginationEl = document.getElementById('pagination');
+
+            // 清空现有分页
+            paginationEl.innerHTML = '';
+
+            // 上一页按钮
+            const prevBtn = document.createElement('button');
+            prevBtn.className = 'pagination-btn';
+            prevBtn.innerHTML = '<i class="fa fa-chevron-left"></i>';
+            prevBtn.disabled = currentPage === 1;
+            prevBtn.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderCurrentPage();
+                    initPagination();
+                }
+            });
+            paginationEl.appendChild(prevBtn);
+
+            // 页码按钮（显示当前页前后2页）
+            const startPage = Math.max(1, currentPage - 2);
+            const endPage = Math.min(totalPages, currentPage + 2);
+
+            // 第一页按钮（如果需要）
+            if (startPage > 1) {
+                const firstPageBtn = createPageBtn(1);
+                paginationEl.appendChild(firstPageBtn);
+
+                if (startPage > 2) {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.className = 'px-2 text-gray-500';
+                    ellipsis.textContent = '...';
+                    paginationEl.appendChild(ellipsis);
+                }
+            }
+
+            // 中间页码
+            for (let i = startPage; i <= endPage; i++) {
+                const pageBtn = createPageBtn(i);
+                paginationEl.appendChild(pageBtn);
+            }
+
+            // 最后一页按钮（如果需要）
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    const ellipsis = document.createElement('span');
+                    ellipsis.className = 'px-2 text-gray-500';
+                    ellipsis.textContent = '...';
+                    paginationEl.appendChild(ellipsis);
+                }
+
+                const lastPageBtn = createPageBtn(totalPages);
+                paginationEl.appendChild(lastPageBtn);
+            }
+
+            // 下一页按钮
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'pagination-btn';
+            nextBtn.innerHTML = '<i class="fa fa-chevron-right"></i>';
+            nextBtn.disabled = currentPage === totalPages;
+            nextBtn.addEventListener('click', () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    renderCurrentPage();
+                    initPagination();
+                }
+            });
+            paginationEl.appendChild(nextBtn);
+
+            // 页码信息
+            const pageInfo = document.createElement('span');
+            pageInfo.className = 'px-3 text-gray-600 text-sm';
+            pageInfo.textContent = `第 ${currentPage} 页 / 共 ${totalPages} 页`;
+            paginationEl.appendChild(pageInfo);
+        }
+
+        /**
+         * 创建页码按钮
+         * @param {number} pageNum - 页码
+         * @returns {HTMLElement} 按钮元素
+         */
+        function createPageBtn(pageNum) {
+            const btn = document.createElement('button');
+            btn.className = `pagination-btn ${pageNum === currentPage ? 'active' : ''}`;
+            btn.textContent = pageNum;
+            btn.addEventListener('click', () => {
+                currentPage = pageNum;
+                renderCurrentPage();
+                initPagination();
+            });
+            return btn;
+        }
+
+        /**
+         * 渲染当前页数据
+         */
+        function renderCurrentPage() {
+            const tableBody = document.getElementById('resultsTableBody');
+            tableBody.innerHTML = '';
+
+            // 计算当前页数据范围
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = Math.min(startIndex + pageSize, allResults.length);
+            const currentResults = allResults.slice(startIndex, endIndex);
+
+            // 渲染每行数据
+            currentResults.forEach((item, index) => {
+                // 合并所有行内容，处理换行符问题
+                const contentLines = item.lines || [];
+                // 合并多行内容，用换行分隔（避免内容过于冗长）
+                const fullContent = contentLines.join('\n');
+                // 处理内容（清理换行+高亮）
+                const processedContent = processContent(fullContent);
+
+                // 创建表格行
+                const tr = document.createElement('tr');
+                tr.className = 'result-row';
+
+                // 序号列
+                const indexTd = document.createElement('td');
+                indexTd.className = 'px-4 py-3 text-sm text-gray-500';
+                indexTd.textContent = startIndex + index + 1;
+                tr.appendChild(indexTd);
+
+                // 文件路径列
+                const fileTd = document.createElement('td');
+                fileTd.className = 'px-4 py-3 text-sm text-gray-800 break-all';
+                fileTd.textContent = item.file || '';
+                tr.appendChild(fileTd);
+
+                // 行号列
+                const lineTd = document.createElement('td');
+                lineTd.className = 'px-4 py-3 text-sm text-gray-800 font-medium';
+                lineTd.textContent = item.line_no || '';
+                tr.appendChild(lineTd);
+
+                // 关键词列
+                const kwTd = document.createElement('td');
+                kwTd.className = 'px-4 py-3 text-sm text-red-600';
+                kwTd.textContent = (item.keywords || []).join(', ') || '';
+                tr.appendChild(kwTd);
+
+                // 匹配内容列
+                const contentTd = document.createElement('td');
+                contentTd.className = 'px-4 py-3 text-sm text-gray-700';
+                contentTd.innerHTML = `<div class="code-content max-h-32 overflow-y-auto">${processedContent || '无内容'}</div>`;
+                tr.appendChild(contentTd);
+
+                // 添加到表格
+                tableBody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+</html>

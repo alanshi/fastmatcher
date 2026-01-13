@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastMatcher - 高效文件关键词搜索</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <style>
+        .result-card {
+            transition: all 0.2s ease;
+        }
+        .result-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- 顶部导航 -->
+    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white py-4 shadow-md">
+        <div class="max-w-6xl mx-auto px-4">
+            <h1 class="text-2xl font-bold flex items-center">
+                <i class="fa fa-search mr-2"></i> FastMatcher
+                <span class="text-sm font-normal ml-2 text-blue-200">高效文件关键词搜索工具</span>
+            </h1>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="max-w-6xl mx-auto px-4 py-8">
+        <!-- 搜索表单区域 -->
+        <section class="bg-white rounded-xl shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-6 border-b pb-3 border-gray-200">搜索配置</h2>
+
+            <!-- 搜索中提示 -->
+            <div id="searching-alert" class="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg mb-6 hidden">
+                <div class="flex items-center">
+                    <i class="fa fa-spinner fa-spin mr-2"></i>
+                    <span>搜索正在进行中...</span>
+                    <a id="status-link" href="#" class="ml-4 text-blue-600 hover:underline">查看进度</a>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- 目录输入 -->
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-gray-700">
+                        <i class="fa fa-folder-open mr-1"></i> 扫描目录 <span class="text-red-500">*</span>
+                    </label>
+                    <input
+                        id="directory"
+                        type="text"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                        placeholder="例如: /var/log 或 D:\logs"
+                    >
+                    <p id="dir-error" class="text-red-500 text-xs mt-1 hidden">请输入有效的目录路径</p>
+                </div>
+
+                <!-- 关键词输入 -->
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-gray-700">
+                        <i class="fa fa-key mr-1"></i> 关键词（逗号分隔） <span class="text-red-500">*</span>
+                    </label>
+                    <input
+                        id="keywords"
+                        type="text"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                        placeholder="例如: ERROR,FATAL,panic,Exception"
+                    >
+                    <p id="kw-error" class="text-red-500 text-xs mt-1 hidden">请输入至少一个关键词</p>
+                </div>
+
+                <!-- 上下文行数 -->
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-gray-700">
+                        <i class="fa fa-list-ol mr-1"></i> 上下文行数
+                    </label>
+                    <input
+                        id="context"
+                        type="number"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                        value="1"
+                        min="0"
+                        max="10"
+                    >
+                    <p class="text-gray-500 text-xs mt-1">建议值：1-5，最多显示10行上下文</p>
+                </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="mt-6 flex flex-wrap gap-3">
+                <button
+                    id="searchBtn"
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg shadow flex items-center transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <i class="fa fa-search mr-2"></i>
+                    <span>开始搜索</span>
+                    <span id="loading-spinner" class="ml-2 hidden"><i class="fa fa-spinner fa-spin"></i></span>
+                </button>
+
+                <button
+                    id="cancelBtn"
+                    class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg shadow flex items-center transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled
+                >
+                    <i class="fa fa-stop mr-2"></i>
+                    <span>取消搜索</span>
+                </button>
+            </div>
+
+            <!-- 进度条区域 -->
+            <div id="progress-container" class="mt-6 hidden">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-sm text-gray-600">搜索进度</span>
+                    <span id="progress-text" class="text-sm font-medium text-blue-600">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                    <div
+                        id="progressBar"
+                        class="bg-gradient-to-r from-blue-500 to-blue-700 h-2.5 rounded-full transition-all duration-300"
+                        style="width:0%"
+                    ></div>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">
+                    <span id="progress-stats">已处理: 0 / 0 文件</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="mt-12 bg-gray-800 text-gray-300 py-4">
+        <div class="max-w-6xl mx-auto px-4 text-center text-sm">
+            FastMatcher © 2026 - 高效文件关键词搜索工具
+        </div>
+    </footer>
+
+    <script>
+        let currentSearchId = null;
+        let pollInterval = null;
+
+        // DOM 元素
+        const elements = {
+            directory: document.getElementById('directory'),
+            keywords: document.getElementById('keywords'),
+            context: document.getElementById('context'),
+            searchBtn: document.getElementById('searchBtn'),
+            cancelBtn: document.getElementById('cancelBtn'),
+            progressBar: document.getElementById('progressBar'),
+            progressText: document.getElementById('progress-text'),
+            progressContainer: document.getElementById('progress-container'),
+            progressStats: document.getElementById('progress-stats'),
+            loadingSpinner: document.getElementById('loading-spinner'),
+            dirError: document.getElementById('dir-error'),
+            kwError: document.getElementById('kw-error'),
+            searchingAlert: document.getElementById('searching-alert'),
+            statusLink: document.getElementById('status-link')
+        };
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            // 绑定事件
+            elements.searchBtn.addEventListener('click', handleSearch);
+            elements.cancelBtn.addEventListener('click', handleCancel);
+
+            // 输入验证
+            elements.directory.addEventListener('input', () => elements.dirError.classList.add('hidden'));
+            elements.keywords.addEventListener('input', () => elements.kwError.classList.add('hidden'));
+
+            // 检查是否有正在进行的搜索（从模板参数）
+            {% if search_id and searching %}
+                currentSearchId = "{{ search_id }}";
+                showSearchingState();
+                startPolling();
+            {% endif %}
+        });
+
+        // 验证输入
+        function validateInput() {
+            let isValid = true;
+            const directory = elements.directory.value.trim();
+            const keywords = elements.keywords.value.trim();
+
+            if (!directory) {
+                elements.dirError.classList.remove('hidden');
+                isValid = false;
+            }
+
+            if (!keywords) {
+                elements.kwError.classList.remove('hidden');
+                isValid = false;
+            }
+
+            return isValid;
+        }
+
+        // 处理搜索
+        async function handleSearch() {
+            // 输入验证
+            if (!validateInput()) return;
+
+            // 获取参数
+            const directory = elements.directory.value.trim();
+            const keywords = elements.keywords.value.trim().split(',').map(k => k.trim()).filter(k => k);
+            const context = Math.max(0, Math.min(10, parseInt(elements.context.value || "1")));
+
+            // 禁用按钮
+            elements.searchBtn.disabled = true;
+            elements.cancelBtn.disabled = false;
+            elements.loadingSpinner.classList.remove('hidden');
+            elements.progressContainer.classList.remove('hidden');
+
+            try {
+                // 启动搜索
+                const response = await fetch("/api/start-search", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        directory: directory,
+                        keywords: keywords,
+                        context: context
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok && data.search_id) {
+                    currentSearchId = data.search_id;
+                    showSearchingState();
+                    startPolling();
+                } else {
+                    throw new Error(data.error || "启动搜索失败");
+                }
+            } catch (e) {
+                console.error('搜索出错:', e);
+                alert(`搜索失败: ${e.message}`);
+                resetUI();
+            }
+        }
+
+        // 处理取消
+        async function handleCancel() {
+            if (!currentSearchId) return;
+
+            try {
+                await fetch("/api/cancel-search", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ search_id: currentSearchId })
+                });
+
+                stopPolling();
+                resetUI();
+                alert("搜索已取消");
+            } catch (e) {
+                console.error('取消请求失败:', e);
+                alert(`取消失败: ${e.message}`);
+            }
+        }
+
+        // 显示搜索中状态
+        function showSearchingState() {
+            elements.searchingAlert.classList.remove('hidden');
+            elements.statusLink.href = `/results/${currentSearchId}`;
+            elements.progressContainer.classList.remove('hidden');
+        }
+
+        // 开始轮询进度
+        function startPolling() {
+            stopPolling(); // 先停止之前的轮询
+
+            pollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/search-status/${currentSearchId}`);
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        // 更新进度
+                        const progress = (data.progress * 100).toFixed(1);
+                        elements.progressBar.style.width = `${progress}%`;
+                        elements.progressText.textContent = `${progress}%`;
+                        elements.progressStats.textContent = `已处理: ${data.processed} / ${data.total} 文件`;
+
+                        // 如果完成，跳转到结果页面
+                        if (data.completed) {
+                            stopPolling();
+                            if (!data.error) {
+                                window.location.href = `/results/${currentSearchId}`;
+                            } else {
+                                alert(`搜索出错: ${data.error}`);
+                                resetUI();
+                            }
+                        }
+                    } else {
+                        throw new Error(data.error || "获取状态失败");
+                    }
+                } catch (e) {
+                    console.error('轮询状态失败:', e);
+                    stopPolling();
+                }
+            }, 1000); // 每秒轮询一次
+        }
+
+        // 停止轮询
+        function stopPolling() {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+        }
+
+        // 重置UI
+        function resetUI() {
+            elements.searchBtn.disabled = false;
+            elements.cancelBtn.disabled = true;
+            elements.loadingSpinner.classList.add('hidden');
+            elements.progressContainer.classList.add('hidden');
+            elements.searchingAlert.classList.add('hidden');
+            elements.progressBar.style.width = "0%";
+            elements.progressText.textContent = "0%";
+            elements.progressStats.textContent = "已处理: 0 / 0 文件";
+            currentSearchId = null;
+        }
+    </script>
+</body>
+</html>

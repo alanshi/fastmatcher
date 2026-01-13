@@ -5,3 +5,5 @@ venv/
 *.csv
 tests
 .DS_Store
+temp/
+*.pyc
