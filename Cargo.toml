@@ -1,6 +1,6 @@
 [package]
 name = "fastmatcher"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [lib]
@@ -8,13 +8,9 @@ name = "fastmatcher"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.21", features = ["extension-module", "generate-import-lib"] }
+pyo3 = { version = "0.21", features = ["extension-module"] }
 aho-corasick = "1.1"
 rayon = "1.10"
 
 [features]
 default = []
-
-[target.x86_64-pc-windows-gnu]
-linker = "/opt/homebrew/bin/x86_64-w64-mingw32-gcc" # 对于 Apple Silicon (M1/M2/M3)
-# linker = "/usr/local/bin/x86_64-w64-mingw32-gcc" # 对于 Intel Mac

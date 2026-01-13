@@ -1,8 +1,33 @@
+from pathlib import Path
 from fastmatcher import ACMatcher
 
-matcher = ACMatcher(["刘备", "关羽"], ignore_case=True, with_lineno=True)
 
-text = "刘备三顾茅庐\n关羽温酒斩华雄"
+def iter_files(root: str):
+    """
+    递归遍历目录下所有文件
+    """
+    root = Path(root)
+    for p in root.rglob("*"):
+        if p.is_file():
+            yield str(p)
 
-for m in matcher.search(text):
-    print(m.keyword, m.line_no, m.line_text)
+
+if __name__ == "__main__":
+    matcher = ACMatcher(
+        patterns=["ip_address"],
+        ignore_case=False,
+        context=1,
+    )
+
+    files = list(iter_files("./test_data"))
+
+    print(f"扫描文件数: {len(files)}")
+
+    for m in matcher.search_files_iter(files):
+        print("=" * 60)
+        print("文件命中")
+        print("行号:", m.line_no)
+        print("关键词:", ", ".join(m.keywords))
+        print("上下文:")
+        for line in m.lines:
+            print("  ", line.rstrip())
