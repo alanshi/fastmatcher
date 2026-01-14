@@ -129,9 +129,8 @@ async def search_files_batch(matcher: ACMatcher, files: List[str]) -> List[dict]
                 match_keywords = [match_keywords]
             elif not isinstance(match_keywords, list):
                 match_keywords = []
-
             results.append({
-                "file": getattr(match, 'file', ''),
+                "file": match.file_path,
                 "line_no": match.line_no,
                 "keywords": match_keywords,  # 确保是数组
                 "lines": match.lines
